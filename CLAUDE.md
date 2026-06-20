@@ -262,16 +262,18 @@ Priorities for **Round 2** are ordered. Phase A makes combat genuinely work with
 **no backend**; Phase B adds the real multiplayer/secure backend.
 
 ### Phase A — Real single-player grading (client-side, demo-ready) 🎯
-- [ ] **Challenge definitions:** extend each castle with a `function` signature,
-      `starterCode`, `tests[]` (baseline), `adversarialTests[]` (worst-case),
-      and a reference solution. Put these in `src/challenges/<key>.js`.
-- [ ] **Sandboxed execution:** run the player's JS in a **Web Worker** with a
-      **hard timeout** (and try/catch) so infinite loops/crashes don't freeze the
-      page. Worker posts back per-test results.
-- [ ] **Verdicts:** `PASS / WRONG / TLE / CRASH` per test (OOM approximated).
-- [ ] **Scoring:** map results to the 4 axes (correctness, efficiency, robustness,
-      adversarial resilience) → composite score → **damage**. Surviving
-      adversarial tests deals the most damage; TLE/CRASH on them = weak hit.
+- [x] **Contract + mock runner:** `src/challenges/schema.js` (Result/Challenge/
+      Verdict shapes + `makeResult`) and `src/engine/runner.js` (MOCK
+      `runSolution` + shared pure `scoreResults`). Person 3 can integrate now.
+- [~] **Challenge definitions:** Arrays done (`src/challenges/arrays.js`, baseline
+      + 100k adversarial inputs); registry in `src/challenges/index.js`.
+      **TODO:** trees / graphs / dp.
+- [ ] **Sandboxed execution:** replace the mock with the player's JS run in a
+      **Web Worker** + **hard timeout** + try/catch; worker posts per-test results.
+- [x] **Verdicts defined:** `PASS / WRONG / TLE / CRASH` enum in `schema.js`
+      (real detection lands with the Web Worker).
+- [x] **Scoring matrix:** `scoreResults()` maps verdicts → 4 axes (correctness,
+      efficiency, robustness, adversarial) → composite → damage.
 - [ ] **Wire into `onCast()`** replacing the fixed-damage stub; show verdict
       feedback (e.g., "TLE on adversarial input!") in the battle dialogue.
 - [ ] **Resilience radar** mini-display in the result screen.
