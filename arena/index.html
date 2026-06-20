@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Adversarial Algorithm Arena — Builder Track</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      background: #05050f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      font-family: 'Press Start 2P', monospace;
+    }
+    #game-container {
+      border: 6px solid #2b2b40;
+      box-shadow: 0 0 0 4px #000, 0 0 50px rgba(0,0,0,0.9);
+      line-height: 0;
+    }
+    /* CRT scanline overlay (pure CSS, sits above the canvas) */
+    #crt {
+      position: fixed; inset: 0; pointer-events: none; z-index: 50;
+      background: repeating-linear-gradient(0deg, rgba(0,0,0,0.16) 0 2px, transparent 2px 4px);
+      mix-blend-mode: multiply;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container"></div>
+  <div id="crt"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
