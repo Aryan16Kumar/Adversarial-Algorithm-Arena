@@ -1,8 +1,12 @@
 import Phaser from 'phaser';
+import { inject } from '@vercel/analytics';
 import { MAP_W, MAP_H } from './config.js';
 import BootScene from './scenes/BootScene.js';
 import MapScene from './scenes/MapScene.js';
 import BattleScene from './scenes/BattleScene.js';
+
+// Initialize Vercel Web Analytics
+inject();
 
 const config = {
   type: Phaser.AUTO,
