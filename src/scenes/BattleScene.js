@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { MAP_W, MAP_H, CASTLES, CURSOR } from '../config.js';
+import { getRandomQuestion, submitScore } from '../supabaseClient.js';
 
 // ============================================================
 //  BattleScene
@@ -24,6 +25,7 @@ export default class BattleScene extends Phaser.Scene {
     this.playerHP = 100;
     this.enemyHP = 100;
     this.busy = false;
+    this.question = null;
 
     // ---------- arena backdrop ----------
     this.add.rectangle(0, 0, W, H, 0x0a0a1f).setOrigin(0, 0);
@@ -40,12 +42,22 @@ export default class BattleScene extends Phaser.Scene {
       fontFamily: '"Press Start 2P"', fontSize: '12px', color: '#ffd166'
     }).setOrigin(0.5, 0);
 
-    this.buildProblemPanel();
+    this.loadQuestion();
     this.buildEditor();
     this.buildCharacters();
     this.buildBackButton();
 
     this.cameras.main.fadeIn(350, 0, 0, 0);
+  }
+
+  async loadQuestion() {
+    try {
+      this.question = await getRandomQuestion(this.castle.difficultyLevel);
+    } catch (err) {
+      console.error('Failed to load question:', err);
+      this.question = null;
+    }
+    this.buildProblemPanel();
   }
 
   // ---------- left: challenge / problem panel ----------
@@ -58,12 +70,15 @@ export default class BattleScene extends Phaser.Scene {
       fontFamily: '"Press Start 2P"', fontSize: '14px', color: '#4fd17a'
     }).setOrigin(0, 0);
 
-    this.add.text(x + 22, y + 64, c.prompt, {
+    const promptText = this.question ? this.question.title : c.prompt;
+    const challengeText = this.question ? this.question.description : c.challenge;
+
+    this.add.text(x + 22, y + 64, promptText, {
       fontFamily: '"Press Start 2P"', fontSize: '12px', color: '#e8e8ff',
       wordWrap: { width: w - 44 }, lineSpacing: 8
     }).setOrigin(0, 0);
 
-    this.add.text(x + 22, y + 200, c.challenge, {
+    this.add.text(x + 22, y + 200, challengeText, {
       fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#9aa0c0',
       wordWrap: { width: w - 44 }, lineSpacing: 8
     }).setOrigin(0, 0);
@@ -223,6 +238,10 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   finish(won) {
+    if (won) {
+      submitScore('Player', this.castle.points).catch(() => {});
+    }
+
     const overlay = this.add.rectangle(0, 0, MAP_W, MAP_H, 0x000000, 0.7).setOrigin(0, 0).setDepth(800);
     this.add.text(MAP_W / 2, MAP_H / 2 - 30, won ? 'VICTORY!' : 'DEFEATED', {
       fontFamily: '"Press Start 2P"', fontSize: '48px', color: won ? '#4fd17a' : '#ff6d6d'
