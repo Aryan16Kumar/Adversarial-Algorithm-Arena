@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { MAP_W, MAP_H, ASSETS, CASTLES } from '../config.js';
+import { MAP_W, MAP_H, ASSETS, CASTLES, CURSOR } from '../config.js';
 
 // ============================================================
 //  MapScene
@@ -12,6 +12,8 @@ export default class MapScene extends Phaser.Scene {
   constructor() { super('Map'); }
 
   create() {
+    this.input.setDefaultCursor(CURSOR.default);
+
     // --- map background, pinned to native resolution ---
     this.add.image(0, 0, ASSETS.map.key).setOrigin(0, 0).setDisplaySize(MAP_W, MAP_H);
 
@@ -55,7 +57,8 @@ export default class MapScene extends Phaser.Scene {
 
   addHotspot(c) {
     const { x, y, w, h } = c.zone;
-    const zone = this.add.zone(x, y, w, h).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    const zone = this.add.zone(x, y, w, h).setOrigin(0, 0)
+      .setInteractive({ cursor: CURSOR.pointer });
 
     zone.on('pointerover', () => this.showTip(c));
     zone.on('pointerout',  () => this.tip.setVisible(false));

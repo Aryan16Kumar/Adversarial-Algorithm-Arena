@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { ASSETS, SHEET } from '../config.js';
+import { ASSETS } from '../config.js';
 
 // ============================================================
 //  BootScene
@@ -15,11 +15,10 @@ export default class BootScene extends Phaser.Scene {
     // Full map background (native 1402 x 1122).
     this.load.image(ASSETS.map.key, ASSETS.map.file);
 
-    // Character reference sheets sliced into 250 x 313 cells.
-    const cell = { frameWidth: SHEET.frameWidth, frameHeight: SHEET.frameHeight };
-    this.load.spritesheet(ASSETS.builder.key, ASSETS.builder.file, cell);
-    this.load.spritesheet(ASSETS.witch.key,   ASSETS.witch.file,   cell);
-    this.load.spritesheet(ASSETS.wizard.key,  ASSETS.wizard.file,  cell);
+    // Cleaned, trimmed front-idle character poses (transparent bg).
+    this.load.image(ASSETS.builder.key, ASSETS.builder.file);
+    this.load.image(ASSETS.witch.key,   ASSETS.witch.file);
+    this.load.image(ASSETS.wizard.key,  ASSETS.wizard.file);
   }
 
   create() {

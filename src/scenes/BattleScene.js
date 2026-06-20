@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { MAP_W, MAP_H, SHEET, CASTLES } from '../config.js';
+import { MAP_W, MAP_H, CASTLES, CURSOR } from '../config.js';
 
 // ============================================================
 //  BattleScene
@@ -18,6 +18,8 @@ export default class BattleScene extends Phaser.Scene {
   create() {
     const W = MAP_W, H = MAP_H;
     const c = this.castle;
+
+    this.input.setDefaultCursor(CURSOR.default);
 
     this.playerHP = 100;
     this.enemyHP = 100;
@@ -99,7 +101,7 @@ export default class BattleScene extends Phaser.Scene {
     // CAST button
     const bx = x + w / 2, by = y + h + 36;
     this.castBtn = this.add.rectangle(bx, by, 280, 56, c.color).setStrokeStyle(3, 0xffffff)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ cursor: CURSOR.pointer });
     this.castLabel = this.add.text(bx, by, '\u2728 CAST SPELL', {
       fontFamily: '"Press Start 2P"', fontSize: '16px', color: '#0a0a1f'
     }).setOrigin(0.5);
@@ -115,11 +117,16 @@ export default class BattleScene extends Phaser.Scene {
     const ground = H - 24;
 
     // player: Builder, lower-left, facing right
-    this.player = this.add.sprite(360, ground, 'builder', SHEET.frontFrame)
-      .setOrigin(0.5, 1).setScale(1.35);
+    const CHAR_H = 360;                       // uniform on-screen height
+    const place = (x, key, flip) => {
+      const s = this.add.sprite(x, ground, key).setOrigin(0.5, 1);
+      s.setScale(CHAR_H / s.height);          // normalise differing trim sizes
+      s.setFlipX(flip);
+      return s;
+    };
+    this.player = place(360, 'builder', false);
     // opponent: this castle's foe, lower-right, facing left
-    this.enemy = this.add.sprite(W - 360, ground, this.castle.opponent, SHEET.frontFrame)
-      .setOrigin(0.5, 1).setScale(1.35).setFlipX(true);
+    this.enemy = place(W - 360, this.castle.opponent, true);
 
     // glows under each fighter
     this.add.image(360, ground - 30, 'glow').setBlendMode(Phaser.BlendModes.ADD)
@@ -230,7 +237,7 @@ export default class BattleScene extends Phaser.Scene {
 
   buildBackButton() {
     const b = this.add.rectangle(120, 36, 180, 44, 0x080818).setStrokeStyle(2, 0xffffff)
-      .setInteractive({ useHandCursor: true }).setDepth(900);
+      .setInteractive({ cursor: CURSOR.pointer }).setDepth(900);
     this.add.text(120, 36, '\u2190 MAP', {
       fontFamily: '"Press Start 2P"', fontSize: '14px', color: '#ffffff'
     }).setOrigin(0.5).setDepth(901);
