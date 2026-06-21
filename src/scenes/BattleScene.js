@@ -260,7 +260,6 @@ export default class BattleScene extends Phaser.Scene {
     if (this.challenge) {
       try {
         grade = await runSolution(code, this.challenge);
-        console.log('[grade]', grade);
         dmg = grade.damage;
       } catch (e) {
         console.warn('[cast error]', e);
@@ -359,8 +358,11 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   finish(won) {
+    // Persist the win to Supabase (Person 2's leaderboard), keyed by the
+    // player's identity (Person 3's localStorage username).
     if (won) {
-      submitScore('Player', this.castle.points).catch(() => {});
+      const username = localStorage.getItem('player_username') || 'Anonymous_Player';
+      submitScore(username, this.castle.points).catch(() => {});
     }
 
     const overlay = this.add.rectangle(0, 0, MAP_W, MAP_H, 0x000000, 0.7).setOrigin(0, 0).setDepth(800);

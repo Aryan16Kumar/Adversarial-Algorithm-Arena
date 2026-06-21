@@ -5,8 +5,21 @@ import BootScene from './scenes/BootScene.js';
 import MapScene from './scenes/MapScene.js';
 import BattleScene from './scenes/BattleScene.js';
 
-// Initialize Vercel Web Analytics
+// Vercel Web Analytics
 inject();
+
+// ---- Player identity ----
+// A stable anonymous handle stored in the browser. Used by the Supabase
+// leaderboard (BattleScene) and the map profile panel (MapScene).
+function initPlayerIdentity() {
+  let username = localStorage.getItem('player_username');
+  if (!username) {
+    username = `Player_${Math.floor(1000 + Math.random() * 9000)}`;
+    localStorage.setItem('player_username', username);
+  }
+  return username;
+}
+initPlayerIdentity();
 
 const config = {
   type: Phaser.AUTO,
