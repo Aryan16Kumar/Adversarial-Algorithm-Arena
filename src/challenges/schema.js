@@ -32,6 +32,8 @@ export const VERDICT = Object.freeze({
  * @property {string}     name
  * @property {string}     functionName  - the function the player must define
  * @property {string}     starterCode   - editor seed
+ * @property {string}     [spec]        - precise one-line input/output spec
+ * @property {string}     [example]     - a concrete example, e.g. "solve([3,1,2]) -> [1,2,3]"
  * @property {number}     timeLimitMs   - per-test wall-clock budget
  * @property {TestCase[]} tests             - baseline correctness
  * @property {TestCase[]} adversarialTests  - worst-case / attacker inputs

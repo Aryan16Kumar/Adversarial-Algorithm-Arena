@@ -2,18 +2,18 @@
 //  Challenge registry — maps a castle `key` (from config.CASTLES)
 //  to its Challenge definition. BattleScene looks challenges up
 //  here by castle key.
-//
-//  TODO (Person 1): add trees / graphs / dp challenges and
-//  register them below as they are authored.
 // ============================================================
 import { arrays } from './arrays.js';
+import { trees } from './trees.js';
+import { graphs } from './graphs.js';
+import { dp } from './dp.js';
 
 /** @type {Record<string, import('./schema.js').Challenge>} */
 const CHALLENGES = {
-  arrays
-  // trees,
-  // graphs,
-  // dp
+  arrays,
+  trees,
+  graphs,
+  dp
 };
 
 /**

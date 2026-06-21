@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
 import { MAP_W, MAP_H, CASTLES, CURSOR } from '../config.js';
+import { runSolution } from '../engine/runner.js';
+import { getChallenge } from '../challenges/index.js';
+import { VERDICT } from '../challenges/schema.js';
 
 // ============================================================
 //  BattleScene
@@ -21,6 +24,7 @@ export default class BattleScene extends Phaser.Scene {
 
     this.input.setDefaultCursor(CURSOR.default);
 
+    this.challenge = getChallenge(this.castle.key);  // may be undefined (TODO castles)
     this.playerHP = 100;
     this.enemyHP = 100;
     this.busy = false;
@@ -51,6 +55,7 @@ export default class BattleScene extends Phaser.Scene {
   // ---------- left: challenge / problem panel ----------
   buildProblemPanel() {
     const c = this.castle;
+    const ch = this.challenge;
     const x = 40, y = 110, w = 600, h = 470;
     this.add.rectangle(x, y, w, h, 0x060614, 0.92).setOrigin(0, 0).setStrokeStyle(3, c.color);
 
@@ -58,15 +63,34 @@ export default class BattleScene extends Phaser.Scene {
       fontFamily: '"Press Start 2P"', fontSize: '14px', color: '#4fd17a'
     }).setOrigin(0, 0);
 
-    this.add.text(x + 22, y + 64, c.prompt, {
-      fontFamily: '"Press Start 2P"', fontSize: '12px', color: '#e8e8ff',
+    this.add.text(x + 22, y + 58, c.prompt, {
+      fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#e8e8ff',
       wordWrap: { width: w - 44 }, lineSpacing: 8
     }).setOrigin(0, 0);
 
-    this.add.text(x + 22, y + 200, c.challenge, {
-      fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#9aa0c0',
-      wordWrap: { width: w - 44 }, lineSpacing: 8
-    }).setOrigin(0, 0);
+    let yy = y + 178;
+    if (ch) {
+      // precise spec
+      const specT = this.add.text(x + 22, yy, ch.spec, {
+        fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#cdd4f0',
+        wordWrap: { width: w - 44 }, lineSpacing: 8
+      }).setOrigin(0, 0);
+      yy += specT.height + 22;
+
+      // concrete example (code-styled)
+      this.add.text(x + 22, yy, 'EXAMPLE', {
+        fontFamily: '"Press Start 2P"', fontSize: '9px', color: '#ffd166'
+      }).setOrigin(0, 0);
+      this.add.text(x + 22, yy + 18, ch.example, {
+        fontFamily: 'monospace', fontSize: '15px', color: '#9be7a0',
+        wordWrap: { width: w - 44 }, lineSpacing: 4
+      }).setOrigin(0, 0);
+    } else {
+      this.add.text(x + 22, yy, c.challenge + '\n\n(no test suite yet \u2014 casting deals a flat hit)', {
+        fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#9aa0c0',
+        wordWrap: { width: w - 44 }, lineSpacing: 8
+      }).setOrigin(0, 0);
+    }
 
     this.add.text(x + 22, y + h - 40, 'Write your spell, then CAST it \u2192', {
       fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#8a8ab0'
@@ -83,12 +107,13 @@ export default class BattleScene extends Phaser.Scene {
       fontFamily: '"Press Start 2P"', fontSize: '12px', color: '#6fd0ff'
     }).setOrigin(0, 0);
 
-    const starter =
-      `// ${c.name}\n` +
-      `function solve(input) {\n` +
-      `  // your incantation here\n` +
-      `  \n` +
-      `}\n`;
+    const starter = this.challenge
+      ? this.challenge.starterCode + '\n'
+      : `// ${c.name}\n` +
+        `function solve(input) {\n` +
+        `  // your incantation here\n` +
+        `  \n` +
+        `}\n`;
 
     const css =
       `width:${w - 36}px;height:${h - 60}px;` +
@@ -156,19 +181,36 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   // ---------- combat ----------
-  onCast() {
+  async onCast() {
     if (this.busy) return;
     const code = this.editor.node.value || '';
-    // Light tie-in: must actually write something past the stub.
     if (code.replace(/[^a-zA-Z0-9]/g, '').length < 30) {
       this.flash('Your spellbook is too empty to cast!', '#ff6d6d');
       return;
     }
     this.busy = true;
+    this.castLabel.setText('CASTING\u2026');
 
-    // NOTE: real code grading would run here and scale damage by
-    // correctness / performance. For now a cast lands a fixed hit.
-    const dmg = Phaser.Math.Between(22, 34);
+    // Grade the code (real Web Worker run). Falls back to a flat hit for
+    // castles whose challenge isn't authored yet.
+    let dmg, grade = null;
+    if (this.challenge) {
+      try {
+        grade = await runSolution(code, this.challenge);
+        console.log('[grade]', grade);
+        dmg = grade.damage;
+      } catch (e) {
+        console.warn('[cast error]', e);
+        grade = null;
+        dmg = Phaser.Math.Between(22, 34);
+      }
+    } else {
+      dmg = Phaser.Math.Between(22, 34);
+    }
+    this.castLabel.setText('\u2728 CAST SPELL');
+    if (grade) this.showVerdict(grade);
+
+    // resolve the cast: player hits, enemy retaliates
     this.castFx(this.player, this.enemy, this.castle.color);
     this.tweens.add({ targets: this.enemy, x: this.enemy.x + 12, yoyo: true, duration: 90, delay: 180 });
 
@@ -179,9 +221,10 @@ export default class BattleScene extends Phaser.Scene {
 
       if (this.enemyHP <= 0) return this.finish(true);
 
-      // enemy retaliates
+      // enemy retaliates harder if your code was weak (low composite)
       this.time.delayedCall(520, () => {
-        const back = Phaser.Math.Between(12, 22);
+        const weak = grade ? (1 - grade.composite) : 0.5;
+        const back = Math.round(8 + weak * 22);
         this.castFx(this.enemy, this.player, 0xff6d6d);
         this.time.delayedCall(220, () => {
           this.playerHP = Math.max(0, this.playerHP - back);
@@ -192,6 +235,30 @@ export default class BattleScene extends Phaser.Scene {
         });
       });
     });
+  }
+
+  // ---------- per-cast verdict feedback ----------
+  showVerdict(grade) {
+    const adv = grade.perTest.filter((t) => t.adversarial);
+    const advPass = adv.filter((t) => t.verdict === VERDICT.PASS).length;
+    const baseFail = grade.perTest.filter((t) => !t.adversarial && t.verdict !== VERDICT.PASS);
+    const tle = adv.filter((t) => t.verdict === VERDICT.TLE).length;
+    const crash = grade.perTest.filter((t) => t.verdict === VERDICT.CRASH).length;
+
+    let msg, col;
+    if (crash) {
+      const firstErr = grade.perTest.find((t) => t.verdict === VERDICT.CRASH && t.error);
+      msg = `CRASH \u00d7${crash}: ${firstErr ? firstErr.error : 'your spell backfired'}`;
+      col = '#ff6d6d';
+    }
+    else if (baseFail.length) { msg = `WRONG on ${baseFail.length} baseline test(s).`; col = '#ff6d6d'; }
+    else if (tle) { msg = `TLE on ${tle} adversarial input(s) \u2014 too slow!`; col = '#ffd166'; }
+    else { msg = 'FLAWLESS \u2014 resisted every assault!'; col = '#4fd17a'; }
+
+    this.flash(
+      `${msg}   [adv ${advPass}/${adv.length} \u00b7 resilience ${(grade.score.adversarial * 100) | 0}%]`,
+      col
+    );
   }
 
   castFx(from, to, color) {

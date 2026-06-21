@@ -5,11 +5,10 @@
 //                    composite, and battle damage. SHARED by the mock
 //                    and the future real runner — keep it pure.
 //
-//  runSolution()   : ⚠️ MOCK. Returns a structured GradeResult so the
-//                    rest of the team can integrate against the
-//                    contract NOW. Person 1 replaces the body with the
-//                    real Web Worker sandbox (run code vs tests, with a
-//                    hard timeout + try/catch → real verdicts).
+//  runSolution()   : runs the player's code in a Web Worker (src/engine/
+//                    worker.js), one test at a time, enforcing a hard
+//                    per-test timeout by terminating a hung worker, and
+//                    produces real PASS/WRONG/TLE/CRASH verdicts.
 // ============================================================
 import { VERDICT } from '../challenges/schema.js';
 
@@ -46,10 +45,8 @@ export function scoreResults(perTest) {
 }
 
 /**
- * ⚠️ MOCK runner — DO NOT ship as the real grader.
- * Produces plausible verdicts so the UI + API integration can be built.
- * Baseline tests pass; adversarial tests pass ~70% (else TLE) to exercise
- * the resilience scoring. Replace with the Web Worker implementation.
+ * Real runner: executes the player's code in a Web Worker, one test at a
+ * time, enforcing a hard per-test timeout by terminating a hung worker.
  *
  * @param {string} code
  * @param {import('../challenges/schema.js').Challenge} challenge
@@ -57,29 +54,81 @@ export function scoreResults(perTest) {
  */
 export async function runSolution(code, challenge) {
   const budget = challenge.timeLimitMs || 1000;
-  const wrote = (code || '').replace(/[^a-zA-Z0-9]/g, '').length > 30;
-
-  const grade = (cases, adversarial) => (cases || []).map((t) => {
-    let verdict = VERDICT.PASS;
-    if (!wrote) verdict = VERDICT.CRASH;
-    else if (adversarial && Math.random() > 0.7) verdict = VERDICT.TLE;
-    return {
-      name: t.name,
-      verdict,
-      timeMs: verdict === VERDICT.TLE ? budget : Math.round(Math.random() * budget * 0.5),
-      budgetMs: budget,
-      adversarial
-    };
-  });
-
-  const perTest = [
-    ...grade(challenge.tests, false),
-    ...grade(challenge.adversarialTests, true)
+  const all = [
+    ...(challenge.tests || []).map((t) => ({ ...t, adversarial: false })),
+    ...(challenge.adversarialTests || []).map((t) => ({ ...t, adversarial: true }))
   ];
 
-  // simulate async work (the real worker is async too)
-  await new Promise((r) => setTimeout(r, 120));
+  let worker = makeWorker();
+  let init = await initWorker(worker, code, challenge.functionName);
+
+  const perTest = [];
+  for (const t of all) {
+    let verdict, timeMs = 0, error;
+    if (!init.ok) {
+      verdict = VERDICT.CRASH;                 // code didn't compile / no function
+      error = init.error;
+    } else {
+      const res = await runOne(worker, t, budget);
+      verdict = res.verdict;
+      timeMs = res.timeMs;
+      error = res.error;
+      if (res.killed) {
+        // worker is stuck in an infinite loop — kill it and start fresh
+        worker.terminate();
+        worker = makeWorker();
+        init = await initWorker(worker, code, challenge.functionName);
+      }
+    }
+    if (error) console.warn('[arena]', t.name, verdict, '-', error);
+    perTest.push({
+      name: t.name, verdict, timeMs: Math.round(timeMs),
+      budgetMs: budget, adversarial: t.adversarial, error
+    });
+  }
+  worker.terminate();
 
   const { score, composite, damage } = scoreResults(perTest);
   return { perTest, score, composite, damage };
+}
+
+// ---- worker plumbing ----
+
+function makeWorker() {
+  const w = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+  w.onerror = (e) => console.error('[arena] worker error:', (e && e.message) || e);
+  return w;
+}
+
+function initWorker(worker, code, functionName) {
+  return new Promise((resolve) => {
+    const onMsg = (e) => {
+      if (e.data && e.data.type === 'inited') {
+        worker.removeEventListener('message', onMsg);
+        resolve(e.data);
+      }
+    };
+    worker.addEventListener('message', onMsg);
+    worker.postMessage({ type: 'init', code, functionName });
+  });
+}
+
+/** Resolves with {verdict, timeMs, killed?}. On timeout, marks TLE (caller kills the worker). */
+function runOne(worker, test, timeLimitMs) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (val) => { if (!done) { done = true; clearTimeout(timer); worker.removeEventListener('message', onMsg); resolve(val); } };
+
+    const timer = setTimeout(() => finish({ verdict: VERDICT.TLE, timeMs: timeLimitMs, killed: true }), timeLimitMs + 50);
+
+    const onMsg = (e) => {
+      const d = e.data;
+      if (!d || d.type !== 'result') return;
+      if (d.error) finish({ verdict: VERDICT.CRASH, timeMs: d.timeMs || 0, error: d.error });
+      else finish({ verdict: d.correct ? VERDICT.PASS : VERDICT.WRONG, timeMs: d.timeMs || 0 });
+    };
+
+    worker.addEventListener('message', onMsg);
+    worker.postMessage({ type: 'run', input: test.input, expected: test.expected });
+  });
 }
