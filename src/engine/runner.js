@@ -36,8 +36,14 @@ export function scoreResults(perTest) {
     : 0;
 
   const score = { correctness, efficiency, robustness, adversarial };
-  // adversarial survival and correctness dominate — rewards defensive code
-  const composite = clamp01(0.35 * correctness + 0.35 * adversarial + 0.15 * robustness + 0.15 * efficiency);
+  // adversarial survival and correctness dominate — rewards defensive code.
+  // DB-sourced questions have no adversarial split, so renormalise without it.
+  let composite;
+  if (adv.length > 0) {
+    composite = clamp01(0.35 * correctness + 0.35 * adversarial + 0.15 * robustness + 0.15 * efficiency);
+  } else {
+    composite = clamp01(0.55 * correctness + 0.25 * robustness + 0.20 * efficiency);
+  }
   // tuned so a battle takes several casts (enemy starts at 100 HP)
   const damage = Math.round(15 + composite * 60);
 

@@ -46,81 +46,117 @@ export default class BattleScene extends Phaser.Scene {
       fontFamily: '"Press Start 2P"', fontSize: '12px', color: '#ffd166'
     }).setOrigin(0.5, 0);
 
-    this.loadQuestion();
-    this.buildEditor();
     this.buildCharacters();
     this.buildBackButton();
+    this.loadQuestion();   // async: fetch DB question -> set challenge -> build panel + editor
 
     this.cameras.main.fadeIn(350, 0, 0, 0);
   }
 
-  // Fetch this castle's question from Supabase (by difficulty), then render the
-  // panel. Falls back to local text if the DB isn't configured / has no rows.
+  // Fetch this castle's question from Supabase (by difficulty). If found, it
+  // becomes the graded challenge (player code runs against its test_cases).
+  // Falls back to the local challenge when the DB isn't configured / empty.
   async loadQuestion() {
+    const loading = this.add.text(62, 186, 'Summoning challenge\u2026', {
+      fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#8a8ab0'
+    }).setDepth(10);
     try {
-      this.question = await getRandomQuestion(this.castle.difficultyLevel);
+      const q = await getRandomQuestion(this.castle.difficultyLevel);
+      if (q) {
+        this.question = q;
+        this.challenge = this.challengeFromQuestion(q);
+      }
     } catch (err) {
       console.error('Failed to load question:', err);
-      this.question = null;
     }
+    loading.destroy();
     this.buildProblemPanel();
+    this.buildEditor();
+  }
+
+  // Convert a Supabase question row into the Challenge shape the runner grades.
+  // The player implements solve(input); each test_case input object is passed
+  // as the single argument and compared to expected_output.
+  challengeFromQuestion(q) {
+    const cases = Array.isArray(q.test_cases) ? q.test_cases : [];
+    const ex = Array.isArray(q.examples) && q.examples[0] ? q.examples[0] : null;
+    return {
+      key: 'db-' + q.id,
+      name: q.title,
+      functionName: 'solve',
+      timeLimitMs: 2000,
+      spec: q.description || '',
+      example: ex ? `solve(${JSON.stringify(ex.input)}) -> ${JSON.stringify(ex.output)}` : '',
+      starterCode:
+        `// ${q.title}\n` +
+        `// Implement solve(input). See EXAMPLES for the input shape.\n` +
+        `function solve(input) {\n\n}`,
+      tests: cases.map((t, i) => ({ name: 'case ' + (i + 1), input: [t.input], expected: t.expected_output })),
+      adversarialTests: []
+    };
   }
 
   // ---------- left: challenge / problem panel ----------
   buildProblemPanel() {
     const c = this.castle;
     const ch = this.challenge;
+    const q = this.question;
     const x = 40, y = 110, w = 600, h = 470;
     this.add.rectangle(x, y, w, h, 0x060614, 0.92).setOrigin(0, 0).setStrokeStyle(3, c.color);
 
-    this.add.text(x + 22, y + 20, '\u25C6 THE CHALLENGE', {
-      fontFamily: '"Press Start 2P"', fontSize: '14px', color: '#4fd17a'
+    this.add.text(x + 20, y + 16, '\u25C6 THE CHALLENGE', {
+      fontFamily: '"Press Start 2P"', fontSize: '13px', color: '#4fd17a'
     }).setOrigin(0, 0);
 
-    const q = this.question;
-    // problem statement: prefer the DB question, fall back to local flavor text
-    const titleText = q && q.title ? q.title : c.prompt;
-    const titleT = this.add.text(x + 22, y + 54, titleText, {
-      fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#e8e8ff',
-      wordWrap: { width: w - 44 }, lineSpacing: 8
-    }).setOrigin(0, 0);
-    let yy = y + 54 + titleT.height + 14;
+    if (q) {
+      // ----- DB question: full statement in a scrollable DOM panel -----
+      const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const diffColor = { Easy: '#4fd17a', Medium: '#ffd166', Hard: '#ff6d6d' }[q.difficulty_level] || '#4ea3ff';
+      const cons = Array.isArray(q.constraints) ? q.constraints : [];
+      const exs = Array.isArray(q.examples) ? q.examples : [];
 
-    if (q && q.description) {
-      const descT = this.add.text(x + 22, yy, q.description, {
-        fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#b9c2e0',
-        wordWrap: { width: w - 44 }, lineSpacing: 7
-      }).setOrigin(0, 0);
-      yy += descT.height + 16;
-    }
+      const body =
+        `<div style="font-family:'Press Start 2P';font-size:11px;color:#fff;line-height:1.6;margin-bottom:10px;">${esc(q.title)}</div>` +
+        `<span style="font-family:'Press Start 2P';font-size:8px;color:#0a0a1f;background:${diffColor};padding:4px 8px;">${esc(q.difficulty_level || '')}</span>` +
+        `<p style="margin:12px 0;color:#cdd4f0;">${esc(q.description || '')}</p>` +
+        (cons.length
+          ? `<div style="color:#ffd166;font-family:'Press Start 2P';font-size:9px;margin:12px 0 6px;">CONSTRAINTS</div>` +
+            `<ul style="margin:0 0 8px 16px;color:#9aa0c0;">${cons.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>`
+          : '') +
+        (exs.length
+          ? `<div style="color:#ffd166;font-family:'Press Start 2P';font-size:9px;margin:12px 0 6px;">EXAMPLES</div>` +
+            exs.map((e) => `<pre style="white-space:pre-wrap;word-break:break-word;color:#9be7a0;margin:0 0 10px;">solve(${esc(JSON.stringify(e.input))})\n\u2192 ${esc(JSON.stringify(e.output))}</pre>`).join('')
+          : '');
 
-    // the local graded contract (what the Web Worker actually runs against)
-    if (ch) {
-      this.add.text(x + 22, yy, '\u25C6 YOUR FUNCTION', {
-        fontFamily: '"Press Start 2P"', fontSize: '9px', color: '#4fd17a'
+      const wrap =
+        `<div style="width:${w - 44}px;height:${h - 104}px;overflow-y:auto;` +
+        `font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.5;` +
+        `color:#cdd4f0;padding-right:8px;">${body}</div>`;
+      this.problemDom = this.add.dom(x + 20, y + 46).createFromHTML(wrap).setOrigin(0, 0);
+    } else if (ch) {
+      // ----- local challenge fallback: precise spec + example -----
+      let yy = y + 54;
+      const specT = this.add.text(x + 22, yy, ch.spec, {
+        fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#cdd4f0',
+        wordWrap: { width: w - 44 }, lineSpacing: 8
       }).setOrigin(0, 0);
-      const specT = this.add.text(x + 22, yy + 16, ch.spec, {
-        fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#cdd4f0',
-        wordWrap: { width: w - 44 }, lineSpacing: 7
-      }).setOrigin(0, 0);
-      yy += 16 + specT.height + 16;
-
+      yy += specT.height + 22;
       this.add.text(x + 22, yy, 'EXAMPLE', {
         fontFamily: '"Press Start 2P"', fontSize: '9px', color: '#ffd166'
       }).setOrigin(0, 0);
-      this.add.text(x + 22, yy + 16, ch.example, {
-        fontFamily: 'monospace', fontSize: '14px', color: '#9be7a0',
+      this.add.text(x + 22, yy + 18, ch.example, {
+        fontFamily: 'monospace', fontSize: '15px', color: '#9be7a0',
         wordWrap: { width: w - 44 }, lineSpacing: 4
       }).setOrigin(0, 0);
-    } else if (!q) {
-      this.add.text(x + 22, yy, c.challenge, {
+    } else {
+      this.add.text(x + 22, y + 54, c.challenge, {
         fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#9aa0c0',
         wordWrap: { width: w - 44 }, lineSpacing: 7
       }).setOrigin(0, 0);
     }
 
-    this.add.text(x + 22, y + h - 40, 'Write your spell, then CAST it \u2192', {
-      fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#8a8ab0'
+    this.add.text(x + 20, y + h - 32, 'Write your spell, then CAST it \u2192', {
+      fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#8a8ab0'
     }).setOrigin(0, 0);
   }
 
@@ -266,26 +302,32 @@ export default class BattleScene extends Phaser.Scene {
 
   // ---------- per-cast verdict feedback ----------
   showVerdict(grade) {
+    const total = grade.perTest.length;
+    const passed = grade.perTest.filter((t) => t.verdict === VERDICT.PASS).length;
+    const crash = grade.perTest.filter((t) => t.verdict === VERDICT.CRASH);
+    const tle = grade.perTest.filter((t) => t.verdict === VERDICT.TLE).length;
+    const wrong = grade.perTest.filter((t) => t.verdict === VERDICT.WRONG).length;
     const adv = grade.perTest.filter((t) => t.adversarial);
-    const advPass = adv.filter((t) => t.verdict === VERDICT.PASS).length;
-    const baseFail = grade.perTest.filter((t) => !t.adversarial && t.verdict !== VERDICT.PASS);
-    const tle = adv.filter((t) => t.verdict === VERDICT.TLE).length;
-    const crash = grade.perTest.filter((t) => t.verdict === VERDICT.CRASH).length;
 
     let msg, col;
-    if (crash) {
-      const firstErr = grade.perTest.find((t) => t.verdict === VERDICT.CRASH && t.error);
-      msg = `CRASH \u00d7${crash}: ${firstErr ? firstErr.error : 'your spell backfired'}`;
+    if (crash.length) {
+      const fe = crash.find((t) => t.error);
+      msg = `CRASH \u00d7${crash.length}: ${fe ? fe.error : 'your spell backfired'}`;
       col = '#ff6d6d';
+    } else if (wrong) {
+      msg = `WRONG on ${wrong} test(s).`;
+      col = '#ff6d6d';
+    } else if (tle) {
+      msg = `TLE on ${tle} test(s) \u2014 too slow!`;
+      col = '#ffd166';
+    } else {
+      msg = 'FLAWLESS \u2014 all tests passed!';
+      col = '#4fd17a';
     }
-    else if (baseFail.length) { msg = `WRONG on ${baseFail.length} baseline test(s).`; col = '#ff6d6d'; }
-    else if (tle) { msg = `TLE on ${tle} adversarial input(s) \u2014 too slow!`; col = '#ffd166'; }
-    else { msg = 'FLAWLESS \u2014 resisted every assault!'; col = '#4fd17a'; }
 
-    this.flash(
-      `${msg}   [adv ${advPass}/${adv.length} \u00b7 resilience ${(grade.score.adversarial * 100) | 0}%]`,
-      col
-    );
+    let extra = `[${passed}/${total} passed]`;
+    if (adv.length) extra += ` \u00b7 resilience ${(grade.score.adversarial * 100) | 0}%`;
+    this.flash(`${msg}   ${extra}`, col);
   }
 
   castFx(from, to, color) {
@@ -344,6 +386,7 @@ export default class BattleScene extends Phaser.Scene {
 
   backToMap() {
     if (this.editor) this.editor.destroy();
+    if (this.problemDom) this.problemDom.destroy();
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Map'));
   }
