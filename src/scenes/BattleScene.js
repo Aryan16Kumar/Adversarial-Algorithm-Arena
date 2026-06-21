@@ -3,6 +3,7 @@ import { MAP_W, MAP_H, CASTLES, CURSOR } from '../config.js';
 import { runSolution } from '../engine/runner.js';
 import { getChallenge } from '../challenges/index.js';
 import { VERDICT } from '../challenges/schema.js';
+import { submitScore } from '../supabaseClient.js';
 
 // ============================================================
 //  BattleScene
@@ -290,6 +291,10 @@ export default class BattleScene extends Phaser.Scene {
   }
 
   finish(won) {
+    if (won) {
+      submitScore('Player', this.castle.points).catch(() => {});
+    }
+
     const overlay = this.add.rectangle(0, 0, MAP_W, MAP_H, 0x000000, 0.7).setOrigin(0, 0).setDepth(800);
     this.add.text(MAP_W / 2, MAP_H / 2 - 30, won ? 'VICTORY!' : 'DEFEATED', {
       fontFamily: '"Press Start 2P"', fontSize: '48px', color: won ? '#4fd17a' : '#ff6d6d'

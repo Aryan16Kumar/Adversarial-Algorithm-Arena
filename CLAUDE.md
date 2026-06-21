@@ -162,6 +162,10 @@ outcomes. See §6–§7.
 - **BootScene:** asset loading with a progress bar.
 - **Real grading (all 4 castles):** Web Worker sandbox runs player code →
   PASS/WRONG/TLE/CRASH → 4-axis score → damage, wired into `BattleScene.onCast()`.
+- **Supabase leaderboard (Person 2):** `submitScore` on victory via
+  `src/supabaseClient.js`; set `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` in
+  `.env` (see `.env.example`). Local `src/challenges` remain the graded source of
+  truth; the DB is used for the leaderboard.
 - **Docs:** `README.md`, `docs/SYSTEM_ARCHITECTURE.md`.
 
 ### 🚧 Partial
