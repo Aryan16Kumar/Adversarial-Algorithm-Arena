@@ -3,15 +3,22 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    'Missing Supabase env vars. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.'
+// Only create the client when configured. Calling createClient() with undefined
+// values throws at import time and would take the whole game down — so we guard
+// it and let the functions below no-op gracefully when the DB isn't set up.
+export const supabase = (supabaseUrl && supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
+
+if (!supabase) {
+  console.warn(
+    '[supabase] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY not set — ' +
+    'DB features (questions, leaderboard) disabled. See .env.example.'
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
 export async function getRandomQuestion(difficulty) {
+  if (!supabase) return null;
   const { data, error } = await supabase
     .from('questions')
     .select('*')
@@ -27,6 +34,7 @@ export async function getRandomQuestion(difficulty) {
 }
 
 export async function submitScore(playerName, score) {
+  if (!supabase) return null;
   const { data, error } = await supabase
     .from('leaderboard')
     .insert([{ player_name: playerName, score }]);
@@ -39,6 +47,7 @@ export async function submitScore(playerName, score) {
 }
 
 export async function getTopScores(limit = 10) {
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from('leaderboard')
     .select('*')

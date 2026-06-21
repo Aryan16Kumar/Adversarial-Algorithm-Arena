@@ -3,7 +3,7 @@ import { MAP_W, MAP_H, CASTLES, CURSOR } from '../config.js';
 import { runSolution } from '../engine/runner.js';
 import { getChallenge } from '../challenges/index.js';
 import { VERDICT } from '../challenges/schema.js';
-import { submitScore } from '../supabaseClient.js';
+import { getRandomQuestion, submitScore } from '../supabaseClient.js';
 
 // ============================================================
 //  BattleScene
@@ -29,6 +29,7 @@ export default class BattleScene extends Phaser.Scene {
     this.playerHP = 100;
     this.enemyHP = 100;
     this.busy = false;
+    this.question = null;
 
     // ---------- arena backdrop ----------
     this.add.rectangle(0, 0, W, H, 0x0a0a1f).setOrigin(0, 0);
@@ -45,12 +46,24 @@ export default class BattleScene extends Phaser.Scene {
       fontFamily: '"Press Start 2P"', fontSize: '12px', color: '#ffd166'
     }).setOrigin(0.5, 0);
 
-    this.buildProblemPanel();
+    this.loadQuestion();
     this.buildEditor();
     this.buildCharacters();
     this.buildBackButton();
 
     this.cameras.main.fadeIn(350, 0, 0, 0);
+  }
+
+  // Fetch this castle's question from Supabase (by difficulty), then render the
+  // panel. Falls back to local text if the DB isn't configured / has no rows.
+  async loadQuestion() {
+    try {
+      this.question = await getRandomQuestion(this.castle.difficultyLevel);
+    } catch (err) {
+      console.error('Failed to load question:', err);
+      this.question = null;
+    }
+    this.buildProblemPanel();
   }
 
   // ---------- left: challenge / problem panel ----------
@@ -64,32 +77,45 @@ export default class BattleScene extends Phaser.Scene {
       fontFamily: '"Press Start 2P"', fontSize: '14px', color: '#4fd17a'
     }).setOrigin(0, 0);
 
-    this.add.text(x + 22, y + 58, c.prompt, {
+    const q = this.question;
+    // problem statement: prefer the DB question, fall back to local flavor text
+    const titleText = q && q.title ? q.title : c.prompt;
+    const titleT = this.add.text(x + 22, y + 54, titleText, {
       fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#e8e8ff',
       wordWrap: { width: w - 44 }, lineSpacing: 8
     }).setOrigin(0, 0);
+    let yy = y + 54 + titleT.height + 14;
 
-    let yy = y + 178;
-    if (ch) {
-      // precise spec
-      const specT = this.add.text(x + 22, yy, ch.spec, {
-        fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#cdd4f0',
-        wordWrap: { width: w - 44 }, lineSpacing: 8
+    if (q && q.description) {
+      const descT = this.add.text(x + 22, yy, q.description, {
+        fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#b9c2e0',
+        wordWrap: { width: w - 44 }, lineSpacing: 7
       }).setOrigin(0, 0);
-      yy += specT.height + 22;
+      yy += descT.height + 16;
+    }
 
-      // concrete example (code-styled)
+    // the local graded contract (what the Web Worker actually runs against)
+    if (ch) {
+      this.add.text(x + 22, yy, '\u25C6 YOUR FUNCTION', {
+        fontFamily: '"Press Start 2P"', fontSize: '9px', color: '#4fd17a'
+      }).setOrigin(0, 0);
+      const specT = this.add.text(x + 22, yy + 16, ch.spec, {
+        fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#cdd4f0',
+        wordWrap: { width: w - 44 }, lineSpacing: 7
+      }).setOrigin(0, 0);
+      yy += 16 + specT.height + 16;
+
       this.add.text(x + 22, yy, 'EXAMPLE', {
         fontFamily: '"Press Start 2P"', fontSize: '9px', color: '#ffd166'
       }).setOrigin(0, 0);
-      this.add.text(x + 22, yy + 18, ch.example, {
-        fontFamily: 'monospace', fontSize: '15px', color: '#9be7a0',
+      this.add.text(x + 22, yy + 16, ch.example, {
+        fontFamily: 'monospace', fontSize: '14px', color: '#9be7a0',
         wordWrap: { width: w - 44 }, lineSpacing: 4
       }).setOrigin(0, 0);
-    } else {
-      this.add.text(x + 22, yy, c.challenge + '\n\n(no test suite yet \u2014 casting deals a flat hit)', {
-        fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#9aa0c0',
-        wordWrap: { width: w - 44 }, lineSpacing: 8
+    } else if (!q) {
+      this.add.text(x + 22, yy, c.challenge, {
+        fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#9aa0c0',
+        wordWrap: { width: w - 44 }, lineSpacing: 7
       }).setOrigin(0, 0);
     }
 
