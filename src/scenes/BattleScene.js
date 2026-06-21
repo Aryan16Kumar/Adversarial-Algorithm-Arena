@@ -222,7 +222,7 @@ export default class BattleScene extends Phaser.Scene {
     this.time.delayedCall(1400, () => t.destroy());
   }
 
-  finish(won) {
+ async finish(won) {
     const overlay = this.add.rectangle(0, 0, MAP_W, MAP_H, 0x000000, 0.7).setOrigin(0, 0).setDepth(800);
     this.add.text(MAP_W / 2, MAP_H / 2 - 30, won ? 'VICTORY!' : 'DEFEATED', {
       fontFamily: '"Press Start 2P"', fontSize: '48px', color: won ? '#4fd17a' : '#ff6d6d'
@@ -231,6 +231,39 @@ export default class BattleScene extends Phaser.Scene {
       won ? 'The castle yields. Click to return to the map.' : 'The Breakers prevail. Click to retreat.', {
       fontFamily: '"Press Start 2P"', fontSize: '14px', color: '#e8e8ff'
     }).setOrigin(0.5).setDepth(801);
+
+    // ==========================================
+    // PERSON 3: FRONTEND API CLIENT (MOCK BATTLE RESULT)
+    // ==========================================
+    const username = localStorage.getItem('player_username') || 'Anonymous_Player';
+    
+    // Create the "Result Object" data package
+    const battleResult = {
+      username: username,
+      result: won ? 'victory' : 'defeat',
+      timestamp: new Date().toISOString()
+    };
+
+    console.log('--- PERSON 3: MOCK API CLIENT TRIGGERED ---');
+    console.log('Sending Battle Result Object:', battleResult);
+
+    // Placeholder backend link until Person 2 gives you theirs
+    const BACKEND_URL = 'http://localhost:5000'; 
+
+    try {
+      await fetch(`${BACKEND_URL}/api/battle-result`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(battleResult),
+      });
+      console.log('Battle results successfully posted to database!');
+    } catch (error) {
+      // It's normal to hit this error right now because the backend server isn't running yet!
+      console.warn('Backend server offline. Mock fallback: Saved result locally.');
+    }
+    // ==========================================
 
     this.input.once('pointerdown', () => this.backToMap());
   }

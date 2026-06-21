@@ -11,7 +11,7 @@ import { MAP_W, MAP_H, ASSETS, CASTLES, CURSOR } from '../config.js';
 export default class MapScene extends Phaser.Scene {
   constructor() { super('Map'); }
 
-  create() {
+ create() {
     this.input.setDefaultCursor(CURSOR.default);
 
     // --- map background, pinned to native resolution ---
@@ -27,6 +27,32 @@ export default class MapScene extends Phaser.Scene {
     this.add.text(MAP_W / 2, 52, 'Choose a castle to lay siege to', {
       fontFamily: '"Press Start 2P"', fontSize: '12px', color: '#ffd166'
     }).setOrigin(0.5, 0).setShadow(0, 2, '#000', 4).setDepth(100);
+
+    // ==========================================
+    // PERSON 3: TASK 3 - PROFILE DISPLAY UI
+    // ==========================================
+    const username = localStorage.getItem('player_username') || 'Guest';
+    
+    // Draw a neat dark blue panel background for the profile box in the top right corner
+    const profileBox = this.add.rectangle(MAP_W - 140, 35, 240, 45, 0x080818, 0.9)
+      .setOrigin(0.5, 0.5)
+      .setStrokeStyle(2, 0x4fd17a) // Neon green pixel border
+      .setDepth(100);
+
+    // Draw the active user's name on top of the panel box
+    this.add.text(MAP_W - 240, 26, `USER: ${username}`, {
+      fontFamily: '"Press Start 2P"',
+      fontSize: '11px',
+      color: '#ffffff'
+    }).setDepth(101);
+
+    // Add a status tracker below the username
+    this.add.text(MAP_W - 240, 42, `RANK: NOVICE [ONLINE]`, {
+      fontFamily: '"Press Start 2P"',
+      fontSize: '9px',
+      color: '#4fd17a'
+    }).setDepth(101);
+    // ==========================================
 
     // --- tooltip (hidden until hover) ---
     this.tip = this.add.container(0, 0).setDepth(500).setVisible(false);
