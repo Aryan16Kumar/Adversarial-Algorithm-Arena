@@ -160,14 +160,31 @@ outcomes. See §6–§7.
   (`*_idle.png`), pixel-art **cursor** (default + hover), CRT overlay,
   fit-to-window scaling (`Scale.FIT` into an aspect-locked container).
 - **BootScene:** asset loading with a progress bar.
+- **Real grading (Web Worker):** the castle's **Supabase question** is the graded
+  problem — player `solve(input)` runs against its `test_cases` →
+  PASS/WRONG/TLE/CRASH → 4-axis score → damage (`BattleScene.onCast`). Local
+  `src/challenges` are the offline fallback when the DB is unavailable.
+- **DB integration (Person 2):** questions (title/difficulty/description/
+  constraints/examples) shown in a scrollable panel; `submitScore` writes the
+  win to the Supabase `leaderboard`. Needs `VITE_SUPABASE_URL` +
+  `VITE_SUPABASE_ANON_KEY` (see `.env.example`).
+- **Player identity + profile (Person 3):** anonymous `player_username` in
+  localStorage; shown in the map profile panel and used as the leaderboard name —
+  unifying all three tracks through the real (Supabase) backend.
 - **Docs:** `README.md`, `docs/SYSTEM_ARCHITECTURE.md`.
 
-### 🚧 Stubbed / placeholder
-- **Combat grading** — `BattleScene.onCast()` currently lands **fixed random
-  damage** and only checks that the editor isn't empty. **This is the #1 thing
-  to replace for Round 2.**
-- **Challenges** — castles only have flavor `prompt` + `challenge` **text**. No
-  function signature, test cases, or reference solutions yet.
+### 🚀 Production push checklist
+- Build is green (`npm run build` → `index.html` + `play.html` + worker chunk).
+- On **Vercel**, set env vars **`VITE_SUPABASE_URL`** and **`VITE_SUPABASE_ANON_KEY`**
+  (the `.env` is gitignored, so the build needs them in the dashboard).
+- Confirm Supabase **RLS**: anon `select` on `questions`; anon `select` + `insert`
+  on `leaderboard`.
+- Final push: PR **`feat/person-1` → `main`**.
+
+### 🚧 Partial
+- **Resilience radar:** per-cast feedback is textual; a graphical radar is TODO.
+- **Debug log:** a `console.log('[grade]', …)` remains in `onCast` for testing \u2014
+  remove before the final build.
 
 ### ❌ Not started
 - Real **code execution / sandbox** (client Web Worker now; Docker later).
@@ -262,21 +279,23 @@ Priorities for **Round 2** are ordered. Phase A makes combat genuinely work with
 **no backend**; Phase B adds the real multiplayer/secure backend.
 
 ### Phase A — Real single-player grading (client-side, demo-ready) 🎯
-- [x] **Contract + mock runner:** `src/challenges/schema.js` (Result/Challenge/
-      Verdict shapes + `makeResult`) and `src/engine/runner.js` (MOCK
-      `runSolution` + shared pure `scoreResults`). Person 3 can integrate now.
-- [~] **Challenge definitions:** Arrays done (`src/challenges/arrays.js`, baseline
-      + 100k adversarial inputs); registry in `src/challenges/index.js`.
-      **TODO:** trees / graphs / dp.
-- [ ] **Sandboxed execution:** replace the mock with the player's JS run in a
-      **Web Worker** + **hard timeout** + try/catch; worker posts per-test results.
-- [x] **Verdicts defined:** `PASS / WRONG / TLE / CRASH` enum in `schema.js`
-      (real detection lands with the Web Worker).
-- [x] **Scoring matrix:** `scoreResults()` maps verdicts → 4 axes (correctness,
-      efficiency, robustness, adversarial) → composite → damage.
-- [ ] **Wire into `onCast()`** replacing the fixed-damage stub; show verdict
-      feedback (e.g., "TLE on adversarial input!") in the battle dialogue.
-- [ ] **Resilience radar** mini-display in the result screen.
+- [x] **Contract + runner:** `src/challenges/schema.js` (Result/Challenge/Verdict
+      shapes + `makeResult`) and `src/engine/runner.js` (real `runSolution` +
+      shared pure `scoreResults`).
+- [x] **Challenge definitions:** all four authored \u2014 Arrays (sort), Trees (max
+      depth), Graphs (cycle detection), DP (LIS) \u2014 each with baseline + large
+      adversarial inputs; registry in `src/challenges/index.js`. The problem panel
+      shows a precise spec + concrete example I/O.
+- [x] **Sandboxed execution:** player JS runs in a **Web Worker**
+      (`src/engine/worker.js`), one test at a time, with a **hard per-test
+      timeout** enforced by terminating a hung worker.
+- [x] **Verdicts:** real `PASS / WRONG / TLE / CRASH` from the worker.
+- [x] **Scoring matrix:** `scoreResults()` → 4 axes → composite → damage.
+- [x] **Wired into `onCast()`:** damage comes from the grade; `showVerdict()`
+      feedback ("TLE on adversarial input!", etc.); enemy retaliates harder when
+      your composite score is low.
+- [ ] **Resilience radar:** graphical radar on the result screen (per-cast
+      textual breakdown is shown for now).
 
 ### Phase B — Backend, multiplayer, security
 - [ ] **API gateway** (Node.js + Fastify) + **JWT** auth.

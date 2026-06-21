@@ -30,6 +30,8 @@ export const arrays = {
   name: 'CASTLE OF ARRAYS',
   functionName: 'solve',
   timeLimitMs: 1000,
+  spec: 'solve(arr): number[] \u2014 return arr sorted in non-decreasing order.',
+  example: 'solve([3,1,2]) \u2192 [1,2,3]',
   starterCode:
 `// Return the array sorted in non-decreasing order.
 // Beware: the adversary will hurl 100,000-element inputs at you.
