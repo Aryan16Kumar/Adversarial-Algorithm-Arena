@@ -111,13 +111,22 @@ export default class BattleScene extends Phaser.Scene {
     if (q) {
       // ----- DB question: full statement in a scrollable DOM panel -----
       const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const diffColor = { Easy: '#4fd17a', Medium: '#ffd166', Hard: '#ff6d6d' }[q.difficulty_level] || '#4ea3ff';
       const cons = Array.isArray(q.constraints) ? q.constraints : [];
       const exs = Array.isArray(q.examples) ? q.examples : [];
 
+      // Difficulty badge as a Phaser object (always visible on the canvas,
+      // not inside the scrollable DOM where it can be missed/clipped).
+      const diffHex = { Easy: 0x4fd17a, Medium: 0xffd166, Hard: 0xff6d6d }[q.difficulty_level] || 0x4ea3ff;
+      const label = (q.difficulty_level || '').toUpperCase();
+      const bw = Math.max(70, label.length * 11 + 24);
+      const bx = x + w - 18 - bw / 2;
+      this.add.rectangle(bx, y + 27, bw, 24, diffHex).setOrigin(0.5).setStrokeStyle(2, 0x05050f).setDepth(5);
+      this.add.text(bx, y + 27, label, {
+        fontFamily: '"Press Start 2P"', fontSize: '9px', color: '#0a0a1f'
+      }).setOrigin(0.5).setDepth(6);
+
       const body =
         `<div style="font-family:'Press Start 2P';font-size:11px;color:#fff;line-height:1.6;margin-bottom:10px;">${esc(q.title)}</div>` +
-        `<span style="font-family:'Press Start 2P';font-size:8px;color:#0a0a1f;background:${diffColor};padding:4px 8px;">${esc(q.difficulty_level || '')}</span>` +
         `<p style="margin:12px 0;color:#cdd4f0;">${esc(q.description || '')}</p>` +
         (cons.length
           ? `<div style="color:#ffd166;font-family:'Press Start 2P';font-size:9px;margin:12px 0 6px;">CONSTRAINTS</div>` +
