@@ -160,13 +160,26 @@ outcomes. See §6–§7.
   (`*_idle.png`), pixel-art **cursor** (default + hover), CRT overlay,
   fit-to-window scaling (`Scale.FIT` into an aspect-locked container).
 - **BootScene:** asset loading with a progress bar.
-- **Real grading (all 4 castles):** Web Worker sandbox runs player code →
-  PASS/WRONG/TLE/CRASH → 4-axis score → damage, wired into `BattleScene.onCast()`.
-- **Supabase leaderboard (Person 2):** `submitScore` on victory via
-  `src/supabaseClient.js`; set `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` in
-  `.env` (see `.env.example`). Local `src/challenges` remain the graded source of
-  truth; the DB is used for the leaderboard.
+- **Real grading (Web Worker):** the castle's **Supabase question** is the graded
+  problem — player `solve(input)` runs against its `test_cases` →
+  PASS/WRONG/TLE/CRASH → 4-axis score → damage (`BattleScene.onCast`). Local
+  `src/challenges` are the offline fallback when the DB is unavailable.
+- **DB integration (Person 2):** questions (title/difficulty/description/
+  constraints/examples) shown in a scrollable panel; `submitScore` writes the
+  win to the Supabase `leaderboard`. Needs `VITE_SUPABASE_URL` +
+  `VITE_SUPABASE_ANON_KEY` (see `.env.example`).
+- **Player identity + profile (Person 3):** anonymous `player_username` in
+  localStorage; shown in the map profile panel and used as the leaderboard name —
+  unifying all three tracks through the real (Supabase) backend.
 - **Docs:** `README.md`, `docs/SYSTEM_ARCHITECTURE.md`.
+
+### 🚀 Production push checklist
+- Build is green (`npm run build` → `index.html` + `play.html` + worker chunk).
+- On **Vercel**, set env vars **`VITE_SUPABASE_URL`** and **`VITE_SUPABASE_ANON_KEY`**
+  (the `.env` is gitignored, so the build needs them in the dashboard).
+- Confirm Supabase **RLS**: anon `select` on `questions`; anon `select` + `insert`
+  on `leaderboard`.
+- Final push: PR **`feat/person-1` → `main`**.
 
 ### 🚧 Partial
 - **Resilience radar:** per-cast feedback is textual; a graphical radar is TODO.
